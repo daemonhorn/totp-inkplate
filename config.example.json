@@ -1,0 +1,6 @@
+{
+  "ssid": "YourHomeWiFi",
+  "password": "YourWiFiPassword",
+  "seed": "JBSWY3DPEHPK3PXP",
+  "account_name": "TOTP"
+}
