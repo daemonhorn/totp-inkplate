@@ -61,7 +61,9 @@ def hotp(secret, counter, digits=6):
         | (h[offset + 3] & 0xFF)
     )
     code = code_int % (10 ** digits)
-    return str(code).zfill(digits)
+    # str.zfill() isn't implemented in all MicroPython builds -- plain
+    # %-formatting is universally supported, so use that instead.
+    return ("%0" + str(digits) + "d") % code
 
 
 def current_window(unix_time, step=30):
