@@ -173,6 +173,18 @@ e.g. `oathtool --totp -b <seed>`. Set either `DEBUG` flag to `False` once
 you don't need it -- it's a real (if small) amount of extra serial I/O
 every cycle.
 
+## Troubleshooting: corrupted/partial display after long dormancy
+
+If a screen comes up with most of its content missing or cut off (e.g. only
+the last character or two visible) -- especially on a board that's sat
+unpowered for a long time with a stale image already on the panel -- run
+`mpremote run tools/panel_condition.py`. It cycles the panel through several
+full black/white refreshes with no text involved at all, which both
+diagnoses whether the problem is the panel itself (long-dormant e-paper
+sometimes needs a few forced full refreshes before it responds cleanly
+again) versus a text-rendering bug, and fixes it if it's the former. See the
+script's own docstring for how to read the result.
+
 ## Experiments (not part of the app)
 
 `tools/experiments/kw_mode_test.py` -- **Inkplate 2-specific, not
