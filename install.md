@@ -25,7 +25,7 @@ manager rather than vendored.
 |---|---|---|
 | Inkplate MicroPython firmware + driver | `2.0.0` (release tag) | [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython), MIT license -- vendored in `vendor/` |
 | `mpremote` | any recent version (written against PyPI `1.29.0` / Debian 13's `1.24.1-1`) | [PyPI](https://pypi.org/project/mpremote/) or Debian package `micropython-mpremote` |
-| `esptool` | any recent version (written against PyPI `5.4.0` / Debian 13's `4.7.0+dfsg-0.1`) | [PyPI](https://pypi.org/project/esptool/) or Debian package `esptool` -- used by Thonny/VSCode to flash firmware, or directly as a fallback (step 2) |
+| `esptool` | any recent version (written against PyPI `5.4.0` / Debian 13's `4.7.0+dfsg-0.1`) | [PyPI](https://pypi.org/project/esptool/) or Debian package `esptool` -- used by Thonny/VSCode to flash firmware, or directly as a fallback (step 2). **Debian's `esptool` apt package is broken for this board**: see the warning in step 2. |
 | `ptyprocess` | any recent version (written against `0.7.0`, same on PyPI and Debian 13) | [PyPI](https://pypi.org/project/ptyprocess/) or Debian package `python3-ptyprocess` -- pseudo-terminal support, useful if you want to script an interactive REPL session (e.g. via `pexpect`) instead of typing into `mpremote repl` by hand |
 
 ## 1. Install the host-side tools
@@ -52,6 +52,19 @@ sudo apt install micropython-mpremote esptool python3-ptyprocess
 (Debian's package for `mpremote` is named `micropython-mpremote`, but it
 installs the same `mpremote` command used throughout this guide -- every
 command below is identical regardless of which install method you used.)
+
+> **If you plan to flash via Thonny or VSCode** (step 2), install `esptool`
+> via `pip`, not `apt`. Debian's `esptool` package is missing the classic-
+> ESP32 stub-flasher data file it needs
+> ([Debian bug #1043168](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1043168),
+> filed 2023, still open) -- Thonny/VSCode both shell out to whatever
+> `esptool` your system's `python3 -m esptool` resolves to, and on Debian
+> 13 that crashes with `FileNotFoundError:
+> .../stub_flasher/stub_flasher_32.json` partway through flashing (you may
+> have already hit this). `pip install --user esptool` installs a working
+> copy that takes precedence over the broken system one. If you only ever
+> flash via the `esptool` CLI directly (see step 2's `--no-stub` flag),
+> the `apt` package is fine as-is.
 
 Plug the Inkplate 2 in via USB-C and confirm it's detected:
 
@@ -102,20 +115,28 @@ Then flash it using one of:
         `vendor/firmware/inkplate-firmware.bin`, then click **Install**.
      5. If you get an error that `esptool` is missing, install it (see the
         dependency table above) via `Tools` -> `Manage plug-ins...`, or use
-        the system copy you already installed in step 1. On Windows, a
-        known Thonny bug
+        the system copy you already installed in step 1 -- but see the
+        `esptool`-on-Debian warning in step 1 first if you're on Debian/apt:
+        this exact combination (Thonny + Debian's `esptool` package + a
+        classic-ESP32 board like this one) crashes with
+        `FileNotFoundError: ...stub_flasher_32.json` partway through
+        flashing. On Windows, a separate known Thonny bug
         ([#2841](https://github.com/thonny/thonny/issues/2841)) can throw
-        `shutil.SameFileError` when installing a local image -- if you hit
-        that, use one of the two options below instead.
+        `shutil.SameFileError` when installing a local image. Either way,
+        use one of the two options below instead.
    - **VSCode**: install the
      [Soldered MicroPython extension](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper),
      then `Install MicroPython on your board` -> `Upload Binary file from PC`
      -> pick `vendor/firmware/inkplate-firmware.bin`.
    - **`esptool` directly**, skipping the IDE entirely (find your port from
-     `mpremote connect list` in step 1):
+     `mpremote connect list` in step 1). Include `--no-stub` -- besides
+     working around the Debian packaging bug above, it's also simply more
+     reliable for a one-off flash (talks straight to the ROM bootloader
+     instead of uploading and running a temporary stub program first; a
+     bit slower, but that doesn't matter for a single firmware flash):
      ```sh
-     esptool --chip esp32 --port /dev/ttyUSB0 erase_flash
-     esptool --chip esp32 --port /dev/ttyUSB0 write_flash -z 0x1000 \
+     esptool --chip esp32 --port /dev/ttyUSB0 --no-stub erase_flash
+     esptool --chip esp32 --port /dev/ttyUSB0 --no-stub write_flash -z 0x1000 \
          vendor/firmware/inkplate-firmware.bin
      ```
      `0x1000` is the standard bootloader offset for classic ESP32 boards
@@ -252,6 +273,12 @@ fallback if it doesn't work on your unit.
 
 ## Troubleshooting
 
+- **Flashing fails with `FileNotFoundError: ...stub_flasher/stub_flasher_32.json`**:
+  this is [Debian bug #1043168](https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1043168)
+  -- Debian's `esptool` apt package ships without the stub-flasher data
+  file this classic-ESP32 board needs. Either run
+  `esptool --no-stub ...` directly (see step 2), or `pip install --user
+  esptool` to get a working copy for Thonny/VSCode to use instead.
 - **Board never leaves the instructions screen / setup times out (10 min)**:
   make sure you're joining `TOTP-Inkplate-Setup` (not accidentally staying
   on your home WiFi), and that your WiFi/BLE payload includes both `ssid`
