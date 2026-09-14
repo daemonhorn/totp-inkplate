@@ -1,49 +1,51 @@
-"""Renders the TOTP screen on the Inkplate 2's black/white/red e-paper.
+"""Renders the TOTP screen on the Inkplate 10's grayscale e-paper.
 
-Wraps Soldered's `inkplate2` driver (vendored in `vendor/`, copied onto the
-board's `/lib` -- see `install.md`).
+Wraps Soldered's `inkplate10` driver (vendored in `vendor/inkplate10/`,
+copied onto the board's `/lib` -- see `install.md`).
 
-Layout constants below are derived from the vendored font's actual glyph
-metrics (`gfx_standard_font_01.get_ch()`), not guessed: this font is
-proportional (not monospaced), and the driver does not clip or wrap text
-that runs past the panel's edge -- it silently draws off-canvas -- so widths
-must be computed, not assumed. Panel is 212x104px.
+Ported from the original Inkplate 2 version of this file: same overall
+structure (show_code/show_message, width-aware truncation using the
+font's real glyph metrics, a DEBUG timing wrapper), but sized for this
+board's much larger 1200x825 panel and its different color model (no red
+channel here -- see _NOT_SYNCED_MSG below) and refresh model (this driver
+supports real partial refresh, unlike the Inkplate 2's full-refresh-only
+panel -- see _display()).
 """
 
 import time
 
-from inkplate2 import Inkplate
+from inkplate10 import Inkplate
 
 import gfx_standard_font_01 as _font
 
-# Prints how long the actual panel refresh (d.display()) takes, each call --
-# see README's Debugging section. This is the number that answers "is the
-# flashing/slowness the panel's own waveform, or something in our code":
-# clear_display() never touches hardware (see its vendored source -- it's
-# two in-RAM bytearray fills), and show_code()/show_message() each call
-# display() exactly once, so this is the actual, total, one-shot hardware
-# refresh time with nothing else in the mix.
+# Prints how long each panel refresh takes, and whether it was a full or
+# partial update -- see README's Debugging section. Unlike the Inkplate 2
+# (where every refresh was a full ~17-19s flash no matter what), most
+# cycles here should be a fast partial update; only every ~10th is a full
+# refresh (see _display()'s docstring).
 DEBUG = True
 
-_CODE_TEXT_SIZE = 4
-_LABEL_TEXT_SIZE = 1
+_CODE_TEXT_SIZE = 10
+_LABEL_TEXT_SIZE = 3
 
-_PANEL_WIDTH = 212
-_MARGIN = 4
+_PANEL_WIDTH = 1200
+_PANEL_HEIGHT = 825
+_MARGIN = 20
 
-# Layout, top to bottom, sized to the panel's 104px height:
-# header (16px) -> code (64px) -> footer (16px), with a few px of slack.
-_HEADER_Y = 2
-_CODE_Y = 20
-_FOOTER_Y = 87
+# Layout, top to bottom. Chosen with generous slack -- this panel has
+# ~7x the Inkplate 2's pixel budget, so unlike that board's tight
+# 212x104 fit, there's no need to compute these to the pixel.
+_HEADER_Y = 20
+_CODE_Y = 292  # (825 - code height 240) // 2 -- centers the code when
+# show_labels is off; leaves comfortable slack above/below it either way
+# when labels are on, since this panel has room to spare.
+_FOOTER_Y = 620
 
-# 6 digits at size 4, no separators, is exactly 192px (6 * 8px-wide-digit *
-# 4) -- verified against the font's actual per-digit width, which fits the
-# 212px panel with this x offset. A space-separated version was tried
-# first and silently overflowed the panel by ~40px, cutting off the last
-# digit(s) -- see git history if reintroducing spacing, and recompute the
-# x offset from the font's real glyph widths, not by eye.
-_CODE_X = 10
+# 6 digits at size 10, no separators: this font's digits are 12px wide
+# natively (verified via gfx_standard_font_01.get_ch, not assumed --
+# different vendored font than the Inkplate 2 used, so its metrics don't
+# transfer), giving 6*12*10 = 720px, centered in the 1200px panel.
+_CODE_X = (_PANEL_WIDTH - 6 * 12 * _CODE_TEXT_SIZE) // 2
 
 _NOT_SYNCED_MSG = "not synced, code unreliable"
 
@@ -77,8 +79,13 @@ def _truncate_to_width(text, size, max_width):
 
 class Display:
     def __init__(self):
-        self._d = Inkplate()
+        self._d = Inkplate(Inkplate.INKPLATE_1BIT)  # 1-bit mode is
+        # required for partial_update() to do anything -- it's a documented
+        # no-op in the 2-bit grayscale mode (confirmed from driver source).
         self._began = False
+        self._first_draw = True  # first draw must be a full display() to
+        # give the driver's partial-update diffing something to diff
+        # against; every draw after that uses partial_update() instead.
 
     def _ensure_began(self):
         if not self._began:
@@ -86,24 +93,32 @@ class Display:
             self._began = True
 
     def _display(self):
+        if self._first_draw:
+            op, fn = "display (full)", self._d.display
+            self._first_draw = False
+        else:
+            op, fn = "partial_update", self._d.partial_update
+
         if not DEBUG:
-            self._d.display()
+            fn()
             return
         t0 = time.ticks_ms()
-        self._d.display()
+        fn()
         elapsed_ms = time.ticks_diff(time.ticks_ms(), t0)
-        print("[debug] display.display() (panel refresh) took %dms" % elapsed_ms)
+        print("[debug] display.%s took %dms" % (op, elapsed_ms))
 
     def show_code(self, account_name, code, valid_until_str, time_synced=True, show_labels=False):
         """Draws the code, centered, at a single text size by default.
 
-        `show_labels` (off by default) additionally draws the account name
-        above it and a "valid until" line below it -- each of those needs
-        its own `set_text_size()` call, which is extra draw work on an
-        already-slow (~20s full refresh) panel, so the default is to skip
-        them and just show the code. The not-synced warning is always
-        shown regardless of `show_labels`, since it's a correctness signal
-        rather than a decorative label.
+        `show_labels` (off by default -- same config knob as the Inkplate 2
+        version, kept for consistency even though this board's fast
+        refresh removes the original performance motivation for hiding
+        them) additionally draws the account name above it and a "valid
+        until" line below it. The not-synced warning is always shown
+        regardless of `show_labels`, since it's a correctness signal
+        rather than a decorative label -- rendered as an inverted (black
+        banner, white text) bar rather than red text, since this panel
+        has no red channel.
         """
         d = self._d
         self._ensure_began()
@@ -114,7 +129,7 @@ class Display:
                 account_name, _LABEL_TEXT_SIZE, _PANEL_WIDTH - 2 * _MARGIN
             )
             d.set_text_size(_LABEL_TEXT_SIZE)
-            d.set_text_color(d.RED)
+            d.set_text_color(d.BLACK)
             d.set_cursor(_MARGIN, _HEADER_Y)
             d.print(header)
 
@@ -124,10 +139,7 @@ class Display:
         d.print(code)
 
         if not time_synced:
-            d.set_text_size(_LABEL_TEXT_SIZE)
-            d.set_text_color(d.RED)
-            d.set_cursor(_MARGIN, _FOOTER_Y)
-            d.print(_NOT_SYNCED_MSG)
+            self._draw_banner(_NOT_SYNCED_MSG)
         elif show_labels:
             footer = _truncate_to_width(
                 "valid until %s" % valid_until_str,
@@ -141,11 +153,24 @@ class Display:
 
         self._display()
 
+    def _draw_banner(self, text):
+        """Inverted (black background, white text) warning bar -- this
+        panel has no red channel, so this stands in for the Inkplate 2
+        version's red not-synced text.
+        """
+        d = self._d
+        text = _truncate_to_width(text, _LABEL_TEXT_SIZE, _PANEL_WIDTH - 4 * _MARGIN)
+        banner_height = _font.height() * _LABEL_TEXT_SIZE + 2 * _MARGIN
+        d.fill_rect(0, _FOOTER_Y - _MARGIN, _PANEL_WIDTH, banner_height, d.BLACK)
+        d.set_text_size(_LABEL_TEXT_SIZE)
+        d.set_text_color(d.WHITE)
+        d.set_cursor(_MARGIN, _FOOTER_Y)
+        d.print(text)
+
     def show_message(self, lines):
         """Simple status screen (e.g. config-mode instructions). Wraps and
         clips (with a trailing "...") to the panel via the driver's own
-        draw_text_box, rather than a fixed per-line pixel step that can
-        silently run past the bottom of the 104px-tall panel.
+        draw_text_box, rather than a fixed per-line pixel step.
         """
         d = self._d
         self._ensure_began()
@@ -156,9 +181,9 @@ class Display:
             _MARGIN,
             _MARGIN,
             _PANEL_WIDTH - _MARGIN,
-            100,
+            _PANEL_HEIGHT - _MARGIN,
             text,
-            line_height=16,
+            line_height=_font.height() * _LABEL_TEXT_SIZE + 8,
             text_size=_LABEL_TEXT_SIZE,
         )
         self._display()

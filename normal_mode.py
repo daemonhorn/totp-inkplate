@@ -1,9 +1,12 @@
 """Normal mode: continuously rotates the displayed TOTP code every 30s.
 
 No radios except a periodic, brief WiFi STA connection to re-sync NTP (no
-BLE, no AP here). See README for why this board can't do deep sleep +
-manual-refresh instead -- it has no buttons, and continuous rotation was the
-user's explicit choice once that was known.
+BLE, no AP here). Originally written for an Inkplate 2 (full-refresh-only,
+~17-19s per update -- continuous 30s rotation was a hard trade-off there).
+Ported to run on an Inkplate 10, which supports real partial refresh
+(~0.6s typical per Soldered's spec, full refresh ~1.6s) -- the same
+30s-rotation model works much better here since the refresh is no longer
+most of the cycle. See display.py for the full/partial refresh handling.
 """
 
 import time
@@ -15,14 +18,16 @@ import timezone
 import totp
 import wifi_manager
 
-# Measured on real hardware via display.py's DEBUG timing (17238ms, 17237ms
-# across two cycles) plus ~2s margin. The code shown is computed for the
-# window that will be current when the draw finishes, not the window at
-# draw *start* -- see README/plan for why a naive "code for right now"
-# would often be stale by the time it's readable. If display.py's printed
-# refresh time drifts from this (temperature affects e-paper waveform
-# timing), bump this back up.
-DRAW_LATENCY_S = 19
+# NOT YET MEASURED on this board -- set from Soldered's documented spec
+# (full refresh ~1.6s, partial ~0.6s) plus a healthy margin for the
+# ~1-in-10 cycles that are a full refresh (see display.py's _display()).
+# Watch display.py's DEBUG timing output on real hardware and tighten
+# this the same way it was tuned for the Inkplate 2 (was 22s -> 19s after
+# real measurements came in). The code shown is computed for the window
+# that will be current when the draw finishes, not the window at draw
+# *start* -- see README/plan for why a naive "code for right now" would
+# often be stale by the time it's readable.
+DRAW_LATENCY_S = 3
 
 NTP_RESYNC_INTERVAL_S = 900
 WIFI_TIMEOUT_S = 20

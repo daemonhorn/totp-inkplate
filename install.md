@@ -1,12 +1,20 @@
-# Installing on a real Inkplate 2
+# Installing on a real Inkplate 10
 
 Step-by-step instructions to get this project running on physical
 hardware. See `README.md` for how the device behaves once installed, and
 for the trade-offs/caveats this design makes.
 
+This project originally targeted a Soldered Inkplate 2 and was later
+ported to the Inkplate 10 (this document) once real-hardware testing
+showed the Inkplate 2's full-refresh-only panel made a 30-second-rotating
+display more disruptive than usable -- see README's "Known trade-offs"
+and the git history around that decision if you're curious. The Inkplate
+2 driver/firmware are still vendored under `vendor/inkplate2/` for
+reference, but nothing in the app imports them anymore.
+
 ## What you'll need
 
-- A Soldered Inkplate 2 board and a USB-C cable.
+- A Soldered Inkplate 10 board and a USB-C cable.
 - A computer with Python 3 installed.
 - Your home WiFi's SSID/password (2.4GHz -- classic ESP32 has no 5GHz radio).
 - Your TOTP base32 seed (the same secret you'd normally scan as a QR code
@@ -66,7 +74,7 @@ command below is identical regardless of which install method you used.)
 > flash via the `esptool` CLI directly (see step 2's `--no-stub` flag),
 > the `apt` package is fine as-is.
 
-Plug the Inkplate 2 in via USB-C and confirm it's detected:
+Plug the Inkplate 10 in via USB-C and confirm it's detected:
 
 ```sh
 mpremote connect list
@@ -74,7 +82,7 @@ mpremote connect list
 
 You should see a serial device (e.g. `/dev/ttyUSB0` on Linux, `/dev/cu.usbserial-*`
 on macOS, `COM*` on Windows). If nothing shows up, install the CH340C USB-
-serial driver for your OS (the Inkplate 2 uses a CH340C chip).
+serial driver for your OS (the Inkplate 10 uses a CH340C chip).
 
 Everywhere below, `mpremote` without a `connect` argument will auto-pick the
 board if it's the only serial device attached. If you have others plugged
@@ -82,9 +90,11 @@ in, prefix each command with `mpremote connect <port>`.
 
 ## 2. Flash the MicroPython firmware
 
-The Inkplate 2 needs Soldered's own MicroPython build (it bundles a native
+The Inkplate 10 needs Soldered's own MicroPython build (it bundles a native
 driver for the e-paper controller as a compiled module -- a generic esp32
-MicroPython build won't have it). This repo vendors it at
+MicroPython build won't have it). This is the same firmware image used for
+every classic-ESP32 Inkplate board (including the Inkplate 2 this project
+originally targeted) -- see `vendor/README.md` for why. This repo vendors it at
 [`vendor/firmware/inkplate-firmware.bin`](vendor/firmware/inkplate-firmware.bin)
 (version `2.0.0` -- see the table above), so there's nothing to separately
 download.
@@ -140,7 +150,7 @@ Then flash it using one of:
          vendor/firmware/inkplate-firmware.bin
      ```
      `0x1000` is the standard bootloader offset for classic ESP32 boards
-     (this is the same board family the Inkplate 2 uses) and matches how
+     (this is the same board family the Inkplate 10 uses) and matches how
      official MicroPython ESP32 firmware images are normally flashed. This
      wasn't verified against Soldered's own build tooling specifically, so
      if it fails, fall back to Thonny or VSCode above, which determine the
@@ -174,18 +184,28 @@ If either line raises an error, stop here -- this project's BLE config path
 [Inkplate-micropython README](https://github.com/SolderedElectronics/Inkplate-micropython#building-the-firmware-manually).
 Otherwise, exit the REPL with Ctrl-] (or Ctrl-D then Ctrl-]) and continue.
 
-## 4. Install the Inkplate 2 display driver
+## 4. Install the Inkplate 10 display driver
 
-Also vendored, at [`vendor/inkplate2.py`](vendor/inkplate2.py) and
-[`vendor/gfx_standard_font_01.py`](vendor/gfx_standard_font_01.py) (same
-`2.0.0` version as the firmware -- they come from the same release). Copy
-them onto the board's `/lib` directory, same place `mip install` would have
-put them:
+Also vendored, under [`vendor/inkplate10/`](vendor/inkplate10/) (same
+`2.0.0` version as the firmware -- see `vendor/README.md` for what each
+file is). Unlike the Inkplate 2, this driver is split across several
+shared support files (GPIO expander drivers, the power-management IC
+driver, shared drawing/text mixins), so there are more files to copy --
+all of them go in the board's `/lib` directory, same place `mip install`
+would have put them:
 
 ```sh
 mpremote mkdir lib
-mpremote cp vendor/inkplate2.py :lib/inkplate2.py
-mpremote cp vendor/gfx_standard_font_01.py :lib/gfx_standard_font_01.py
+mpremote cp vendor/inkplate10/inkplate10.py :lib/inkplate10.py
+mpremote cp vendor/inkplate10/gfx_standard_font_01.py :lib/gfx_standard_font_01.py
+mpremote cp vendor/inkplate10/pcal6416a.py :lib/pcal6416a.py
+mpremote cp vendor/inkplate10/mcp23017.py :lib/mcp23017.py
+mpremote cp vendor/inkplate10/tps65186.py :lib/tps65186.py
+mpremote cp vendor/inkplate10/rtc.py :lib/rtc.py
+mpremote cp vendor/inkplate10/epd_power_pins.py :lib/epd_power_pins.py
+mpremote cp vendor/inkplate10/inkplate_gfx_mixin.py :lib/inkplate_gfx_mixin.py
+mpremote cp vendor/inkplate10/inkplate_text_mixin.py :lib/inkplate_text_mixin.py
+mpremote cp vendor/inkplate10/inkplate_image_gs4_mixin.py :lib/inkplate_image_gs4_mixin.py
 ```
 
 (`mpremote mkdir lib` will print an error if `/lib` already exists -- that's
@@ -209,15 +229,16 @@ Verify the files landed:
 mpremote ls
 ```
 
-You should see `main.py`, the other `.py` files above, and `lib/inkplate2.py`
-+ `lib/gfx_standard_font_01.py` from step 4.
+You should see `main.py`, the other `.py` files above, and the ten
+`lib/*.py` driver files from step 4.
 
 ## 6. First boot: run setup mode
 
 Reset the board (press the physical RST/EN button, or unplug/replug USB).
 With no `config.json` present yet, it boots straight into setup mode and
-the screen will show setup instructions once the AP/BLE come up (this first
-draw takes ~20s -- the e-paper panel is slow).
+the screen will show setup instructions once the AP/BLE come up (this
+first draw is a full refresh, ~1.6s per Soldered's spec -- not yet
+confirmed on this specific unit, see README's Debugging section).
 
 Pick **one** of these two ways to send your config:
 
@@ -260,9 +281,10 @@ After the reboot, the board should:
 
 Cross-check the shown code against another authenticator app fed the same
 seed (e.g. run `oathtool --totp -b <seed>` on a computer) -- they should
-match (allowing for the draw delay: the panel's slow refresh means the
-code shown is for the window that will be current once the draw finishes,
-not the instant a cycle started).
+match (allowing for a small draw delay: the code shown is for the window
+that will be current once the draw finishes, not the instant a cycle
+started -- much less noticeable on this board than the original Inkplate
+2 target, since refreshes here are ~1-2s instead of ~20s).
 
 If codes don't match, see `README.md`'s Debugging section -- `normal_mode.py`
 prints the loaded seed, the time it thinks it is, and each generated code
@@ -292,10 +314,12 @@ fallback if it doesn't work on your unit.
 - **Code doesn't match another authenticator**: double check the seed was
   typed/pasted correctly (no extra spaces; padding `=` characters are
   optional and stripped automatically), and that the board's WiFi
-  connected successfully for NTP (a red `not synced, code unreliable`
-  warning on the panel means the code is unreliable until WiFi/NTP
-  succeeds -- check your SSID/password). Use the live debug output
-  (`README.md`'s Debugging section) to see the exact seed, time, and window
-  the board is actually using -- it's much faster than guessing.
+  connected successfully for NTP (an inverted black-banner
+  `not synced, code unreliable` warning on the panel -- this board has no
+  red channel, so it's a filled bar instead of red text -- means the code
+  is unreliable until WiFi/NTP succeeds -- check your SSID/password). Use
+  the live debug output (`README.md`'s Debugging section) to see the exact
+  seed, time, and window the board is actually using -- it's much faster
+  than guessing.
 - **`import bluetooth` or `hashlib.sha1` failed in step 3**: see that
   step's link to rebuilding the firmware with the needed module enabled.
