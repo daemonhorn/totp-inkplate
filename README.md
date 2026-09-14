@@ -126,15 +126,15 @@ need it -- it's a real (if small) amount of extra serial I/O every cycle.
 
 ## Experiments (not part of the app)
 
-`tools/experiments/kw_mode_test.py` -- probes whether the e-paper
-controller's undocumented-for-this-panel "KW" (black/white-only) mode
-refreshes faster than the tri-color mode the app always uses. It's a
-one-off, opt-in diagnostic: run it with `mpremote run
-tools/experiments/kw_mode_test.py` (which executes it without ever saving
-it to the board), read the script's own docstring first for exactly what
-it does and why it might render garbage instead of a real speedup --
-nothing it does is permanent, a reset undoes it. It is not referenced by
-`install.md` and nothing in the app imports it.
+`tools/experiments/kw_mode_test.py` -- probed whether the e-paper
+controller's "KW" (black/white-only) mode refreshes faster than the
+tri-color mode the app always uses. **Measured result on real hardware:
+KW mode is slower** (21897ms vs. a 17234ms tri-color baseline), not
+faster -- see the script's own docstring for the full readout and
+reasoning. This investigation is concluded; the script is kept only as
+documentation of a dead end, in case someone's tempted to re-run it later
+expecting a different answer. Not referenced by `install.md`, nothing in
+the app imports it.
 
 ## Running the tests
 

@@ -1,5 +1,17 @@
 """EXPERIMENTAL -- not part of the app, not deployed by install.md.
 
+## RESULT (measured on real hardware, see git history for the readout)
+
+KW mode was SLOWER than the driver's normal tri-color mode: 21897ms vs.
+17234ms baseline (a real Inkplate 2 / GDEH0213Z19 board). Whatever the
+datasheet's "6 LUT groups vs. 10" distinction means, it does not translate
+to less wall-clock time on this panel -- if anything the reverse. This
+investigation is concluded: KW mode is not worth pursuing further here,
+independently of whatever the rendered image looked like. Left in the repo
+as documentation so this isn't re-investigated later; the script still
+runs if you want to reproduce it or try variations (different PSR bytes,
+a real previous-frame OLD plane instead of all-white, etc.).
+
 Run manually: `mpremote run tools/experiments/kw_mode_test.py`
 (mpremote run uploads and executes this script transiently -- it is never
 saved to the board's filesystem, so there's nothing to clean up afterwards
