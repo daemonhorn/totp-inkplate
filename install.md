@@ -63,9 +63,31 @@ sha256sum -c <(echo "841859ea7aaffb3d553f4a8436871cb2bcf3e2ce819b716ebd417168908
 ```
 
 Then flash it using one of:
-   - **Thonny**: `Run` -> `Configure interpreter` -> `Install or update
-     MicroPython` -> click `≡` -> `Select local MicroPython image` -> pick
-     `vendor/firmware/inkplate-firmware.bin` -> `Install`.
+   - **Thonny** (tested against the click-path in 4.1.x -- if your version
+     differs, the general idea is the same):
+     1. `Run` -> `Configure interpreter...` (or `Tools` -> `Options` ->
+        `Interpreter`, or click the interpreter indicator in the bottom-right
+        corner of the window).
+     2. At the top of that page, change the dropdown **"Which kind of
+        interpreter should Thonny use for running your code?"** from
+        `Local Python 3` to **`MicroPython (ESP32)`**. This step is easy to
+        miss -- the firmware-flashing option below doesn't exist at all
+        until you do this; it's not that Thonny lacks the feature, it's
+        that it's hidden behind the interpreter-kind dropdown.
+     3. The page reloads with a small hyperlink-style label in its
+        bottom-right corner: **"Install or update MicroPython (esptool)"**
+        (not a button, easy to miss).
+     4. In the dialog that opens, click the **☰ / ≡** ("tribar") menu
+        button, choose **"Select local MicroPython image..."**, pick
+        `vendor/firmware/inkplate-firmware.bin`, then click **Install**.
+     5. If you get an error that `esptool` is missing, install it via
+        `Tools` -> `Manage plug-ins...` and search for `esptool`, then
+        retry. On Windows, a known Thonny bug
+        ([#2841](https://github.com/thonny/thonny/issues/2841)) can throw
+        `shutil.SameFileError` when installing a local image -- if you hit
+        that, use the VSCode path below instead, or flash with
+        [`esptool.py`](https://docs.espressif.com/projects/esptool/en/latest/esp32/)
+        directly.
    - **VSCode**: install the
      [Soldered MicroPython extension](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper),
      then `Install MicroPython on your board` -> `Upload Binary file from PC`
