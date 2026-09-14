@@ -232,8 +232,9 @@ fine, ignore it.)
 From this repository's root:
 
 ```sh
-mpremote cp main.py config_mode.py normal_mode.py totp.py config_store.py \
-    wifi_manager.py ntp_sync.py ble_config.py captive_portal.py display.py :
+mpremote cp main.py config_mode.py normal_mode.py totp.py timezone.py \
+    config_store.py wifi_manager.py ntp_sync.py ble_config.py \
+    captive_portal.py display.py :
 ```
 
 Do **not** copy `config.json` or `config.example.json` -- the board
@@ -245,8 +246,11 @@ Verify the files landed:
 mpremote ls
 ```
 
-You should see `main.py`, the other `.py` files above, and the ten
-`lib/*.py` driver files from step 4.
+You should see `main.py`, the other `.py` files above (`timezone.py`
+included -- `normal_mode.py` imports it directly for the "valid until"
+line's UTC-offset/DST math, so a boot without it fails with
+`ImportError: no module named 'timezone'`), and the ten `lib/*.py` driver
+files from step 4.
 
 ## 6. First boot: run setup mode
 
@@ -292,7 +296,17 @@ After the reboot, the board should:
 1. Briefly connect to your WiFi and sync time over NTP.
 2. Show a 6-digit code (by default, just the code -- no account name or
    "valid until" line; see `README.md`'s Configuration section to bring
-   those back via `show_labels`).
+   those back via `show_labels`). If you do turn that line on, it's
+   computed by `timezone.py`'s own pure-integer calendar math (not
+   MicroPython's `time.localtime()` -- see that module's docstring for
+   why) from two hand-editable `config.json` fields, `tz_offset_hours`
+   (standard-time UTC offset, default `-5` for US Eastern) and `tz_dst`
+   (whether to auto-add 1 hour for US daylight saving, default `true`) --
+   neither is exposed in the setup UI (see step 6), so change them by
+   hand-editing `config.json` (`mpremote edit config.json`) if the default
+   doesn't match your timezone. This only affects the displayed label,
+   never the generated code itself -- TOTP always computes off true UTC
+   internally.
 3. Redraw with a new code roughly every 30 seconds, indefinitely.
 
 Cross-check the shown code against another authenticator app fed the same
