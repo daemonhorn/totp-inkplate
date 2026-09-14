@@ -52,6 +52,14 @@ e-paper board, from a base32 seed you provide once during setup.
   30 seconds around the clock (~2,880/day) -- worth knowing given these
   panels are typically rated for on the order of 10^6 full refreshes over
   their lifetime.
+- **The double-reset reconfigure trick is unverified on hardware.** It
+  relies on `machine.RTC().memory()` surviving a reset via the board's
+  physical EN pin; that's true for `machine.reset()` and deep-sleep wake on
+  classic ESP32, but EN resets the RTC domain on some boards. Verify with
+  `machine.RTC().memory(b"DR")` → press EN → check `machine.RTC().memory()`
+  on the next boot, before relying on double-reset to reconfigure. If it
+  doesn't survive, swap `main.py`'s detector for a flash-file marker
+  (write → sleep 2s → delete) instead.
 - **`bluetooth` and `hashlib.sha1` are assumed present** in Soldered's
   prebuilt firmware (this is plain upstream MicroPython for the esp32 port
   with Bluetooth enabled), but this hasn't been confirmed by running code on

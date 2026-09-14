@@ -21,6 +21,13 @@ TIMEOUT_S = 600  # give up and reboot after 10 minutes of no config
 
 
 def run():
+    # Bring the AP/portal/BLE up *before* drawing the instructions screen --
+    # the draw itself takes ~21s, and we don't want the screen telling the
+    # user to join a network or connect over BLE that isn't up yet.
+    wifi_manager.start_ap(AP_SSID)
+    portal = CaptivePortal()
+    ble = BLEConfigServer(name=AP_SSID)
+
     disp = display_mod.Display()
     disp.show_message(
         [
@@ -36,10 +43,6 @@ def run():
             "service (see README)",
         ]
     )
-
-    wifi_manager.start_ap(AP_SSID)
-    portal = CaptivePortal()
-    ble = BLEConfigServer(name=AP_SSID)
 
     result = None
     deadline = time.time() + TIMEOUT_S

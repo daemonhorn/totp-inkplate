@@ -6,9 +6,17 @@ Decides between config mode and normal mode:
   board has no other buttons/touch pads to dedicate to "enter setup").
 - Otherwise -> normal mode.
 
-The double-reset detector uses `machine.RTC().memory()`, which survives a
-soft/hard reset but is cleared on power loss -- exactly the "did the user
-just reset me again on purpose" signal we want.
+The double-reset detector uses `machine.RTC().memory()`, which is documented
+to survive `machine.reset()` and deep-sleep wake, and cleared on power loss
+-- exactly the "did the user just reset me again on purpose" signal we want.
+
+NOT YET VERIFIED ON HARDWARE: whether RTC memory also survives a reset via
+the board's physical EN pin specifically (as opposed to `machine.reset()`),
+since EN resets the RTC domain on some ESP32 boards. Test before relying on
+this: `machine.RTC().memory(b"DR")`, press EN, then check
+`machine.RTC().memory()` on the next boot. If it comes back empty, replace
+this with a flash-file marker instead (write a marker file, sleep 2s, delete
+it -- a reset inside that window leaves it on disk).
 """
 
 import time

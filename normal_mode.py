@@ -42,7 +42,7 @@ def _format_utc(unix_time):
 
 def run():
     cfg = config_store.load()
-    account_name = cfg["account_name"]
+    account_name = cfg.get("account_name", "TOTP")
     seed = cfg["seed"]
 
     disp = display_mod.Display()
