@@ -75,22 +75,9 @@ e-paper board, from a base32 seed you provide once during setup.
 
 ## Setup
 
-1. **Flash Soldered's MicroPython firmware** (`inkplate-firmware.bin`) using
-   their [VSCode extension](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper)
-   or [Thonny](https://thonny.org/) -- see the driver repo's
-   [setup instructions](https://github.com/SolderedElectronics/Inkplate-micropython#setting-up-inkplate-with-micropython).
-2. **Install the Inkplate 2 display driver** (not vendored in this repo --
-   installed the same way the upstream project documents):
-   ```sh
-   mpremote mip install github:SolderedElectronics/Inkplate-micropython/boards/inkplate2
-   ```
-3. **Copy this project's files onto the board**:
-   ```sh
-   mpremote cp main.py config_mode.py normal_mode.py totp.py config_store.py \
-       wifi_manager.py ntp_sync.py ble_config.py captive_portal.py display.py :
-   ```
-4. Power/reset the board. On first boot it has no `config.json`, so it will
-   enter setup mode automatically -- follow the WiFi or BLE steps above.
+See [`install.md`](install.md) for full step-by-step installation
+instructions (flashing firmware, installing the driver, copying files onto
+the board, and running setup mode for the first time).
 
 ## Running the tests
 
