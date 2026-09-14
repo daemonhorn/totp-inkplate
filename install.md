@@ -71,8 +71,11 @@ command below is identical regardless of which install method you used.)
 > .../stub_flasher/stub_flasher_32.json` partway through flashing (you may
 > have already hit this). `pip install --user esptool` installs a working
 > copy that takes precedence over the broken system one. If you only ever
-> flash via the `esptool` CLI directly (see step 2's `--no-stub` flag),
-> the `apt` package is fine as-is.
+> flash via the `esptool` CLI directly, the `apt` package still needs
+> `--no-stub` to work around this bug (see step 2) -- but note `--no-stub`
+> can't do a whole-chip erase (the bare ROM bootloader doesn't support
+> that command at all), so `pip install --user esptool` is the better fix
+> if you need `erase-flash`.
 
 Plug the Inkplate 10 in via USB-C and confirm it's detected:
 
@@ -139,16 +142,29 @@ Then flash it using one of:
      then `Install MicroPython on your board` -> `Upload Binary file from PC`
      -> pick `vendor/firmware/inkplate-firmware.bin`.
    - **`esptool` directly**, skipping the IDE entirely (find your port from
-     `mpremote connect list` in step 1). Include `--no-stub` -- besides
-     working around the Debian packaging bug above, it's also simply more
-     reliable for a one-off flash (talks straight to the ROM bootloader
-     instead of uploading and running a temporary stub program first; a
-     bit slower, but that doesn't matter for a single firmware flash):
+     `mpremote connect list` in step 1). **Do not add `--no-stub`** if
+     you're on a working (non-Debian-apt, e.g. `pip install`ed) `esptool` --
+     `--no-stub` talks straight to the ESP32's bare ROM bootloader instead
+     of uploading esptool's own helper program first, and the bare ROM
+     loader on classic ESP32 **does not implement a whole-chip erase at
+     all**: `erase-flash`/`erase_flash` fails there with `ESP32 ROM does
+     not support function erase_flash`, no matter how the port/board are
+     configured -- this isn't specific to a stale or third-party firmware,
+     it's a ROM-level limitation. `--no-stub` is only a fallback for the
+     Debian packaging bug above (a broken *stub*, i.e. missing
+     `stub_flasher_32.json`) -- if you fixed that with `pip install --user
+     esptool`, you have a working stub and don't need `--no-stub` at all;
+     use it only if you're still stuck on Debian's broken apt package and
+     `write_flash` alone (without erasing first) is enough for your case:
      ```sh
-     esptool --chip esp32 --port /dev/ttyUSB0 --no-stub erase_flash
-     esptool --chip esp32 --port /dev/ttyUSB0 --no-stub write_flash -z 0x1000 \
+     esptool --chip esp32 --port /dev/ttyUSB0 erase-flash
+     esptool --chip esp32 --port /dev/ttyUSB0 write-flash -z 0x1000 \
          vendor/firmware/inkplate-firmware.bin
      ```
+     (Older esptool releases used underscored subcommand names --
+     `erase_flash`/`write_flash` -- rather than the hyphenated
+     `erase-flash`/`write-flash` above; both exist as of 5.x, use whichever
+     yours accepts.)
      `0x1000` is the standard bootloader offset for classic ESP32 boards
      (this is the same board family the Inkplate 10 uses) and matches how
      official MicroPython ESP32 firmware images are normally flashed. This
@@ -307,6 +323,14 @@ fallback if it doesn't work on your unit.
   file this classic-ESP32 board needs. Either run
   `esptool --no-stub ...` directly (see step 2), or `pip install --user
   esptool` to get a working copy for Thonny/VSCode to use instead.
+- **`erase-flash`/`erase_flash` fails with `ESP32 ROM does not support
+  function erase_flash`**: you're running with `--no-stub`, which talks
+  directly to the bare ROM bootloader -- and that ROM loader doesn't
+  implement a whole-chip erase at all, on any classic ESP32, regardless of
+  what's currently flashed. Drop `--no-stub` (it's only needed to work
+  around the Debian packaging bug above; if you're on a `pip`-installed
+  `esptool` you don't need it) and re-run with the normal stub-based
+  `erase-flash`/`write-flash`.
 - **Board never leaves the instructions screen / setup times out (10 min)**:
   make sure you're joining `TOTP-Inkplate-Setup` (not accidentally staying
   on your home WiFi), and that your WiFi/BLE payload includes both `ssid`
