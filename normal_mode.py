@@ -15,12 +15,14 @@ import timezone
 import totp
 import wifi_manager
 
-# Measured/estimated Inkplate 2 full-refresh duration (3-color panel), plus a
-# small margin. The code shown is computed for the window that will be
-# current when the draw finishes, not the window at draw *start* -- see
-# README/plan for why a naive "code for right now" would often be stale by
-# the time it's readable.
-DRAW_LATENCY_S = 22
+# Measured on real hardware via display.py's DEBUG timing (17238ms, 17237ms
+# across two cycles) plus ~2s margin. The code shown is computed for the
+# window that will be current when the draw finishes, not the window at
+# draw *start* -- see README/plan for why a naive "code for right now"
+# would often be stale by the time it's readable. If display.py's printed
+# refresh time drifts from this (temperature affects e-paper waveform
+# timing), bump this back up.
+DRAW_LATENCY_S = 19
 
 NTP_RESYNC_INTERVAL_S = 900
 WIFI_TIMEOUT_S = 20
