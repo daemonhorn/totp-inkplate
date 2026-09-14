@@ -14,24 +14,44 @@ for the trade-offs/caveats this design makes.
 
 ## Dependency versions
 
-Everything below is vendored in this repo under [`vendor/`](vendor/) (see
-[`vendor/README.md`](vendor/README.md) for checksums and how to re-vendor a
-newer version) -- no separate download or `mip install` step needed.
+The Inkplate firmware/driver are vendored in this repo under
+[`vendor/`](vendor/) (see [`vendor/README.md`](vendor/README.md) for
+checksums and how to re-vendor a newer version) -- no separate download or
+`mip install` step needed for those. The host-side tools below are small,
+platform-provided utilities instead, so they're installed via your package
+manager rather than vendored.
 
 | Dependency | Version | Source |
 |---|---|---|
-| Inkplate MicroPython firmware + driver | `2.0.0` (release tag) | [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython), MIT license |
-| `mpremote` | any recent version (written against `1.29.0`) | [PyPI](https://pypi.org/project/mpremote/), installed via `pip` below, not vendored |
+| Inkplate MicroPython firmware + driver | `2.0.0` (release tag) | [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython), MIT license -- vendored in `vendor/` |
+| `mpremote` | any recent version (written against PyPI `1.29.0` / Debian 13's `1.24.1-1`) | [PyPI](https://pypi.org/project/mpremote/) or Debian package `micropython-mpremote` |
+| `esptool` | any recent version (written against PyPI `5.4.0` / Debian 13's `4.7.0+dfsg-0.1`) | [PyPI](https://pypi.org/project/esptool/) or Debian package `esptool` -- used by Thonny/VSCode to flash firmware, or directly as a fallback (step 2) |
+| `ptyprocess` | any recent version (written against `0.7.0`, same on PyPI and Debian 13) | [PyPI](https://pypi.org/project/ptyprocess/) or Debian package `python3-ptyprocess` -- pseudo-terminal support, useful if you want to script an interactive REPL session (e.g. via `pexpect`) instead of typing into `mpremote repl` by hand |
 
-## 1. Install `mpremote`
+## 1. Install the host-side tools
 
 `mpremote` is the standard MicroPython tool for flashing files and talking
-to the board's REPL. It's a small standalone tool (not tied to a specific
-firmware version), so it's installed via `pip` rather than vendored.
+to the board's REPL; `esptool` talks to the ESP32's ROM bootloader directly
+and is what Thonny/VSCode use under the hood to flash firmware (and what you
+can use directly -- see step 2); `ptyprocess` is optional, for scripting an
+interactive REPL session. None of these are tied to a specific firmware
+version, so install them via your package manager rather than vendoring:
+
+**Via `pip`** (any OS):
 
 ```sh
-pip install mpremote
+pip install mpremote esptool ptyprocess
 ```
+
+**Via `apt`, on Debian 13 (trixie) or derivatives**:
+
+```sh
+sudo apt install micropython-mpremote esptool python3-ptyprocess
+```
+
+(Debian's package for `mpremote` is named `micropython-mpremote`, but it
+installs the same `mpremote` command used throughout this guide -- every
+command below is identical regardless of which install method you used.)
 
 Plug the Inkplate 2 in via USB-C and confirm it's detected:
 
@@ -80,18 +100,30 @@ Then flash it using one of:
      4. In the dialog that opens, click the **☰ / ≡** ("tribar") menu
         button, choose **"Select local MicroPython image..."**, pick
         `vendor/firmware/inkplate-firmware.bin`, then click **Install**.
-     5. If you get an error that `esptool` is missing, install it via
-        `Tools` -> `Manage plug-ins...` and search for `esptool`, then
-        retry. On Windows, a known Thonny bug
+     5. If you get an error that `esptool` is missing, install it (see the
+        dependency table above) via `Tools` -> `Manage plug-ins...`, or use
+        the system copy you already installed in step 1. On Windows, a
+        known Thonny bug
         ([#2841](https://github.com/thonny/thonny/issues/2841)) can throw
         `shutil.SameFileError` when installing a local image -- if you hit
-        that, use the VSCode path below instead, or flash with
-        [`esptool.py`](https://docs.espressif.com/projects/esptool/en/latest/esp32/)
-        directly.
+        that, use one of the two options below instead.
    - **VSCode**: install the
      [Soldered MicroPython extension](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper),
      then `Install MicroPython on your board` -> `Upload Binary file from PC`
      -> pick `vendor/firmware/inkplate-firmware.bin`.
+   - **`esptool` directly**, skipping the IDE entirely (find your port from
+     `mpremote connect list` in step 1):
+     ```sh
+     esptool --chip esp32 --port /dev/ttyUSB0 erase_flash
+     esptool --chip esp32 --port /dev/ttyUSB0 write_flash -z 0x1000 \
+         vendor/firmware/inkplate-firmware.bin
+     ```
+     `0x1000` is the standard bootloader offset for classic ESP32 boards
+     (this is the same board family the Inkplate 2 uses) and matches how
+     official MicroPython ESP32 firmware images are normally flashed. This
+     wasn't verified against Soldered's own build tooling specifically, so
+     if it fails, fall back to Thonny or VSCode above, which determine the
+     correct offset themselves.
 
 You only need to do this once. Re-flashing wipes the filesystem, so if
 you're re-flashing a board that's already configured, back up `config.json`
