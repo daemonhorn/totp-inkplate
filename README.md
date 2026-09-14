@@ -124,6 +124,18 @@ Cross-check a printed code against an independent tool at the same seed and
 window, e.g. `oathtool --totp -b <seed>`. Set `DEBUG = False` once you don't
 need it -- it's a real (if small) amount of extra serial I/O every cycle.
 
+## Experiments (not part of the app)
+
+`tools/experiments/kw_mode_test.py` -- probes whether the e-paper
+controller's undocumented-for-this-panel "KW" (black/white-only) mode
+refreshes faster than the tri-color mode the app always uses. It's a
+one-off, opt-in diagnostic: run it with `mpremote run
+tools/experiments/kw_mode_test.py` (which executes it without ever saving
+it to the board), read the script's own docstring first for exactly what
+it does and why it might render garbage instead of a real speedup --
+nothing it does is permanent, a reset undoes it. It is not referenced by
+`install.md` and nothing in the app imports it.
+
 ## Running the tests
 
 `totp.py` and `timezone.py` have no `machine`/`network` imports, so their
