@@ -2,5 +2,8 @@
   "ssid": "YourHomeWiFi",
   "password": "YourWiFiPassword",
   "seed": "JBSWY3DPEHPK3PXP",
-  "account_name": "TOTP"
+  "account_name": "TOTP",
+  "show_labels": false,
+  "tz_offset_hours": -5,
+  "tz_dst": true
 }

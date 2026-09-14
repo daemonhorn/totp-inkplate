@@ -11,6 +11,7 @@ import time
 import config_store
 import display as display_mod
 import ntp_sync
+import timezone
 import totp
 import wifi_manager
 
@@ -25,6 +26,29 @@ NTP_RESYNC_INTERVAL_S = 900
 WIFI_TIMEOUT_S = 20
 NTP_TIMEOUT_S = 5
 
+# Most embedded MicroPython ports (this esp32 build included) count
+# time.time() from 2000-01-01, not the Unix epoch (1970-01-01) that RFC 6238
+# TOTP is defined against. Getting this wrong produces a completely
+# different (wrong) HOTP counter -- every generated code is wrong, not just
+# occasionally off -- which is exactly the bug this constant fixes. See
+# _unix_time()/_to_device_time() below; verified independently via
+# `python3 -c "import calendar; print(calendar.timegm((2000,1,1,0,0,0,0,0,0)))"`.
+_UNIX_EPOCH_OFFSET = 946684800
+
+DEBUG = True
+
+
+def _unix_time():
+    """True Unix-epoch seconds -- what TOTP math must use."""
+    return time.time() + _UNIX_EPOCH_OFFSET
+
+
+def _to_device_time(unix_time):
+    """Inverse of _unix_time() -- what this board's time.localtime() (and
+    hence anything printed via it) expects.
+    """
+    return unix_time - _UNIX_EPOCH_OFFSET
+
 
 def _sync_time(cfg):
     connected = wifi_manager.connect_sta(
@@ -32,18 +56,33 @@ def _sync_time(cfg):
     )
     synced = ntp_sync.sync(timeout_s=NTP_TIMEOUT_S) if connected else False
     wifi_manager.disconnect_sta()
+    if DEBUG:
+        y, m, d, hh, mm, ss = timezone.unix_to_ymdhms(_unix_time())
+        print(
+            "[debug] wifi_connected=%s ntp_synced=%s utc_now=%04d-%02d-%02d %02d:%02d:%02d"
+            % (connected, synced, y, m, d, hh, mm, ss)
+        )
     return synced
-
-
-def _format_utc(unix_time):
-    _year, _month, _mday, hh, mm, ss, *_rest = time.localtime(unix_time)
-    return "%02d:%02d:%02d UTC" % (hh, mm, ss)
 
 
 def run():
     cfg = config_store.load()
-    account_name = cfg.get("account_name", "TOTP")
+    account_name = cfg["account_name"]
     seed = cfg["seed"]
+    show_labels = cfg["show_labels"]
+    tz_offset_hours = cfg["tz_offset_hours"]
+    tz_dst = cfg["tz_dst"]
+
+    if DEBUG:
+        # %s, not %r -- not all MicroPython builds implement every str
+        # formatting/method feature CPython does (str.zfill() didn't exist
+        # on this board's build either; see git history).
+        print("[debug] account_name=%s" % account_name)
+        print("[debug] seed (base32)=%s" % seed)
+        print(
+            "[debug] show_labels=%s tz_offset_hours=%s tz_dst=%s"
+            % (show_labels, tz_offset_hours, tz_dst)
+        )
 
     disp = display_mod.Display()
 
@@ -55,13 +94,25 @@ def run():
             time_synced = _sync_time(cfg) or time_synced
             last_sync = time.time()
 
-        target = time.time() + DRAW_LATENCY_S
+        now = _unix_time()
+        target = now + DRAW_LATENCY_S
         window = totp.current_window(target)
         code = totp.generate(seed, window)
-        valid_until = _format_utc(totp.window_end(window))
+        window_end = totp.window_end(window)
+        valid_until = timezone.format_local(window_end, tz_offset_hours, tz_dst)
 
-        disp.show_code(account_name, code, valid_until, time_synced=time_synced)
+        if DEBUG:
+            y, m, d, hh, mm, ss = timezone.unix_to_ymdhms(now)
+            print(
+                "[debug] unix_now=%d utc=%04d-%02d-%02d %02d:%02d:%02d window=%d "
+                "code=%s valid_until=%s synced=%s"
+                % (now, y, m, d, hh, mm, ss, window, code, valid_until, time_synced)
+            )
 
-        sleep_s = totp.window_end(window) - time.time()
+        disp.show_code(
+            account_name, code, valid_until, time_synced=time_synced, show_labels=show_labels
+        )
+
+        sleep_s = window_end - _unix_time()
         if sleep_s > 0:
             time.sleep(sleep_s)

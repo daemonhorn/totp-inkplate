@@ -253,15 +253,21 @@ and the board reboots into normal mode within a couple seconds.
 
 After the reboot, the board should:
 1. Briefly connect to your WiFi and sync time over NTP.
-2. Show your account name, a 6-digit code, and a line reading
-   `valid until HH:MM:SS UTC`.
+2. Show a 6-digit code (by default, just the code -- no account name or
+   "valid until" line; see `README.md`'s Configuration section to bring
+   those back via `show_labels`).
 3. Redraw with a new code roughly every 30 seconds, indefinitely.
 
 Cross-check the shown code against another authenticator app fed the same
 seed (e.g. run `oathtool --totp -b <seed>` on a computer) -- they should
-match (allowing for the displayed "valid until" time, since the panel's
-slow refresh means the code shown is for the window that will be current
-once the draw finishes, not the instant you pressed reset).
+match (allowing for the draw delay: the panel's slow refresh means the
+code shown is for the window that will be current once the draw finishes,
+not the instant a cycle started).
+
+If codes don't match, see `README.md`'s Debugging section -- `normal_mode.py`
+prints the loaded seed, the time it thinks it is, and each generated code
+live over the serial connection (`mpremote`), which is the fastest way to
+tell whether it's a seed problem, a time-sync problem, or something else.
 
 ## Reconfiguring later (new WiFi or new seed)
 
@@ -286,8 +292,10 @@ fallback if it doesn't work on your unit.
 - **Code doesn't match another authenticator**: double check the seed was
   typed/pasted correctly (no extra spaces; padding `=` characters are
   optional and stripped automatically), and that the board's WiFi
-  connected successfully for NTP (a `NOT TIME-SYNCED` warning in place of
-  the "valid until" line means the code is unreliable until WiFi/NTP
-  succeeds -- check your SSID/password).
+  connected successfully for NTP (a red `not synced, code unreliable`
+  warning on the panel means the code is unreliable until WiFi/NTP
+  succeeds -- check your SSID/password). Use the live debug output
+  (`README.md`'s Debugging section) to see the exact seed, time, and window
+  the board is actually using -- it's much faster than guessing.
 - **`import bluetooth` or `hashlib.sha1` failed in step 3**: see that
   step's link to rebuilding the firmware with the needed module enabled.

@@ -74,36 +74,50 @@ class Display:
             self._d.begin()
             self._began = True
 
-    def show_code(self, account_name, code, valid_until_str, time_synced=True):
+    def show_code(self, account_name, code, valid_until_str, time_synced=True, show_labels=False):
+        """Draws the code, centered, at a single text size by default.
+
+        `show_labels` (off by default) additionally draws the account name
+        above it and a "valid until" line below it -- each of those needs
+        its own `set_text_size()` call, which is extra draw work on an
+        already-slow (~20s full refresh) panel, so the default is to skip
+        them and just show the code. The not-synced warning is always
+        shown regardless of `show_labels`, since it's a correctness signal
+        rather than a decorative label.
+        """
         d = self._d
         self._ensure_began()
         d.clear_display()
 
-        header = _truncate_to_width(
-            account_name, _LABEL_TEXT_SIZE, _PANEL_WIDTH - 2 * _MARGIN
-        )
-        d.set_text_size(_LABEL_TEXT_SIZE)
-        d.set_text_color(d.RED)
-        d.set_cursor(_MARGIN, _HEADER_Y)
-        d.print(header)
+        if show_labels:
+            header = _truncate_to_width(
+                account_name, _LABEL_TEXT_SIZE, _PANEL_WIDTH - 2 * _MARGIN
+            )
+            d.set_text_size(_LABEL_TEXT_SIZE)
+            d.set_text_color(d.RED)
+            d.set_cursor(_MARGIN, _HEADER_Y)
+            d.print(header)
 
         d.set_text_size(_CODE_TEXT_SIZE)
         d.set_text_color(d.BLACK)
         d.set_cursor(_CODE_X, _CODE_Y)
         d.print(code)
 
-        d.set_text_size(_LABEL_TEXT_SIZE)
-        d.set_text_color(d.RED if not time_synced else d.BLACK)
-        d.set_cursor(_MARGIN, _FOOTER_Y)
-        if time_synced:
+        if not time_synced:
+            d.set_text_size(_LABEL_TEXT_SIZE)
+            d.set_text_color(d.RED)
+            d.set_cursor(_MARGIN, _FOOTER_Y)
+            d.print(_NOT_SYNCED_MSG)
+        elif show_labels:
             footer = _truncate_to_width(
                 "valid until %s" % valid_until_str,
                 _LABEL_TEXT_SIZE,
                 _PANEL_WIDTH - 2 * _MARGIN,
             )
-        else:
-            footer = _NOT_SYNCED_MSG
-        d.print(footer)
+            d.set_text_size(_LABEL_TEXT_SIZE)
+            d.set_text_color(d.BLACK)
+            d.set_cursor(_MARGIN, _FOOTER_Y)
+            d.print(footer)
 
         d.display()
 

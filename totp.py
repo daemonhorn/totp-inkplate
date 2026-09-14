@@ -26,7 +26,9 @@ def b32decode(s):
     out = bytearray()
     for ch in s:
         if ch not in _B32_LOOKUP:
-            raise ValueError("invalid base32 character: %r" % ch)
+            # %s, not %r -- not guaranteed present on every MicroPython
+            # build (str.zfill() wasn't, on the board this was tested on).
+            raise ValueError("invalid base32 character: '%s'" % ch)
         value = (value << 5) | _B32_LOOKUP[ch]
         bits += 5
         if bits >= 8:

@@ -33,6 +33,10 @@ e-paper board, from a base32 seed you provide once during setup.
   your WiFi to sync time over NTP, then continuously redraws the current
   6-digit code every 30 seconds, re-syncing NTP roughly every 15 minutes.
   No BLE and no WiFi access point run outside setup mode.
+- By default only the 6-digit code is shown (no account name, no "valid
+  until" line) -- each of those needs its own text-size change, which adds
+  real time on a panel that's already slow to redraw. Set `"show_labels":
+  true` in `config.json` to bring them back (see Configuration below).
 - To **reconfigure** later (new WiFi or new seed), press the board's
   physical EN/RESET button twice within ~2 seconds -- this is detected via
   `machine.RTC().memory()` and re-enters setup mode without needing any
@@ -44,8 +48,19 @@ e-paper board, from a base32 seed you provide once during setup.
   panel only supports a full refresh, taking roughly 21 seconds. Since a
   TOTP code is valid for only 30 seconds, `normal_mode.py` computes the code
   for the window that will be current *when the draw finishes* (see
-  `DRAW_LATENCY_S`) and shows an absolute **"valid until HH:MM:SS UTC"**
-  instead of a countdown, which would be visibly wrong given the delay.
+  `DRAW_LATENCY_S`) and shows an absolute **"valid until HH:MM:SS (UTC±HH:MM)"**
+  instead of a countdown, which would be visibly wrong given the delay --
+  though this line is hidden by default now (see above).
+- **MicroPython's `time.time()` on this board counts from 2000-01-01, not
+  the Unix epoch (1970-01-01) TOTP is defined against.** This isn't a
+  trade-off so much as a landmine: get it wrong and every generated code is
+  wrong, not just occasionally off, since the HOTP counter is computed from
+  it directly. `normal_mode.py`'s `_unix_time()`/`_to_device_time()` add/
+  remove the fixed 946684800s offset between the two epochs -- if you touch
+  time-handling code here, keep true-Unix-epoch values (for TOTP math) and
+  device-epoch values (for anything passed to `time.localtime()`) straight;
+  mixing them up reproduces this exact bug. `timezone.py` sidesteps the
+  question entirely for its own calendar math (see its module docstring).
 - **No deep sleep in normal mode.** Continuous 30-second rotation means the
   board never sleeps, so this is realistically a USB-powered device, not a
   battery one, and the e-paper panel undergoes a full refresh roughly every
@@ -79,13 +94,43 @@ See [`install.md`](install.md) for full step-by-step installation
 instructions (flashing firmware, installing the driver, copying files onto
 the board, and running setup mode for the first time).
 
+## Configuration
+
+The setup UI (BLE/captive portal) only asks for `ssid`, `password`, `seed`,
+and `account_name`. A few more knobs exist in `config.json` but are only
+settable by hand-editing it (e.g. `mpremote cp` a new copy, or
+`mpremote edit config.json`) -- see `config.example.json` for the full set:
+
+| Field | Default | Meaning |
+|---|---|---|
+| `show_labels` | `false` | Show the account name and "valid until" line, not just the bare code (see "How it works" above) |
+| `tz_offset_hours` | `-5` | Standard-time UTC offset used for the "valid until" line (default: US Eastern Standard Time). Doesn't affect the generated code itself -- TOTP always uses true UTC internally, this only changes a display label |
+| `tz_dst` | `true` | Auto-add 1 hour on top of `tz_offset_hours` during US daylight saving (2nd Sunday of March - 1st Sunday of November). Set `false` if your offset doesn't observe DST, or observes a different schedule than the US |
+
+`config_store.py` merges whatever you hand-set here with what the setup UI
+sends, so these survive reconfiguring WiFi/seed through BLE or the captive
+portal later.
+
+## Debugging
+
+`normal_mode.py` has a `DEBUG = True` flag (on by default) that prints the
+loaded seed/account name once at startup, then every 30-second cycle prints
+the raw and UTC-formatted time, the TOTP window/counter, the generated
+code, and whether NTP is synced -- to whatever is watching the board's
+serial console. To watch it live: `mpremote` (opens a REPL), then Ctrl-D to
+soft-reset the board so `main.py` runs again with your session attached, or
+`mpremote resume` to attach without resetting if it's already running.
+Cross-check a printed code against an independent tool at the same seed and
+window, e.g. `oathtool --totp -b <seed>`. Set `DEBUG = False` once you don't
+need it -- it's a real (if small) amount of extra serial I/O every cycle.
+
 ## Running the tests
 
-`totp.py` has no `machine`/`network` imports, so its logic is fully testable
-without hardware:
+`totp.py` and `timezone.py` have no `machine`/`network` imports, so their
+logic is fully testable without hardware:
 
 ```sh
-python3 -m unittest tests.test_totp -v
+python3 -m unittest discover -s tests -v
 ```
 
 ## Project layout
@@ -96,6 +141,7 @@ python3 -m unittest tests.test_totp -v
 | `config_mode.py` | Runs BLE + captive portal concurrently, saves config, reboots |
 | `normal_mode.py` | Continuous 30-second TOTP display loop |
 | `totp.py` | Base32 decode, HMAC-SHA1, HOTP/TOTP (RFC 4226 / RFC 6238) |
+| `timezone.py` | UTC offset + optional US DST, for display formatting only |
 | `config_store.py` | Load/save `config.json` |
 | `wifi_manager.py` | WiFi STA connect/disconnect, AP start/stop |
 | `ntp_sync.py` | NTP time sync with a fallback server list |
@@ -103,4 +149,5 @@ python3 -m unittest tests.test_totp -v
 | `captive_portal.py` | DNS redirector + HTTP form server for setup config |
 | `display.py` | Renders the code screen via the Inkplate 2 driver |
 | `tests/test_totp.py` | CPython-runnable unit tests for `totp.py` |
+| `tests/test_timezone.py` | CPython-runnable unit tests for `timezone.py` |
 | `vendor/` | Vendored third-party firmware + display driver (see `vendor/README.md`) |
