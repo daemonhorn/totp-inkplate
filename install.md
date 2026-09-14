@@ -12,10 +12,22 @@ for the trade-offs/caveats this design makes.
 - Your TOTP base32 seed (the same secret you'd normally scan as a QR code
   into an authenticator app).
 
+## Dependency versions
+
+Everything below is vendored in this repo under [`vendor/`](vendor/) (see
+[`vendor/README.md`](vendor/README.md) for checksums and how to re-vendor a
+newer version) -- no separate download or `mip install` step needed.
+
+| Dependency | Version | Source |
+|---|---|---|
+| Inkplate MicroPython firmware + driver | `2.0.0` (release tag) | [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython), MIT license |
+| `mpremote` | any recent version (written against `1.29.0`) | [PyPI](https://pypi.org/project/mpremote/), installed via `pip` below, not vendored |
+
 ## 1. Install `mpremote`
 
 `mpremote` is the standard MicroPython tool for flashing files and talking
-to the board's REPL.
+to the board's REPL. It's a small standalone tool (not tied to a specific
+firmware version), so it's installed via `pip` rather than vendored.
 
 ```sh
 pip install mpremote
@@ -39,19 +51,25 @@ in, prefix each command with `mpremote connect <port>`.
 
 The Inkplate 2 needs Soldered's own MicroPython build (it bundles a native
 driver for the e-paper controller as a compiled module -- a generic esp32
-MicroPython build won't have it).
+MicroPython build won't have it). This repo vendors it at
+[`vendor/firmware/inkplate-firmware.bin`](vendor/firmware/inkplate-firmware.bin)
+(version `2.0.0` -- see the table above), so there's nothing to separately
+download.
 
-1. Download `inkplate-firmware.bin` from
-   [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython)
-   (see the repo's `firmware/` directory or its releases).
-2. Flash it using one of:
+Optionally verify it hasn't been corrupted/altered before flashing:
+
+```sh
+sha256sum -c <(echo "841859ea7aaffb3d553f4a8436871cb2bcf3e2ce819b716ebd41716890893713  vendor/firmware/inkplate-firmware.bin")
+```
+
+Then flash it using one of:
    - **Thonny**: `Run` -> `Configure interpreter` -> `Install or update
      MicroPython` -> click `≡` -> `Select local MicroPython image` -> pick
-     `inkplate-firmware.bin` -> `Install`.
+     `vendor/firmware/inkplate-firmware.bin` -> `Install`.
    - **VSCode**: install the
      [Soldered MicroPython extension](https://marketplace.visualstudio.com/items?itemName=SolderedElectronics.soldered-micropython-helper),
      then `Install MicroPython on your board` -> `Upload Binary file from PC`
-     -> pick `inkplate-firmware.bin`.
+     -> pick `vendor/firmware/inkplate-firmware.bin`.
 
 You only need to do this once. Re-flashing wipes the filesystem, so if
 you're re-flashing a board that's already configured, back up `config.json`
@@ -83,15 +101,20 @@ Otherwise, exit the REPL with Ctrl-] (or Ctrl-D then Ctrl-]) and continue.
 
 ## 4. Install the Inkplate 2 display driver
 
-This project doesn't vendor the driver -- install it the way the upstream
-project documents, via `mip`:
+Also vendored, at [`vendor/inkplate2.py`](vendor/inkplate2.py) and
+[`vendor/gfx_standard_font_01.py`](vendor/gfx_standard_font_01.py) (same
+`2.0.0` version as the firmware -- they come from the same release). Copy
+them onto the board's `/lib` directory, same place `mip install` would have
+put them:
 
 ```sh
-mpremote mip install github:SolderedElectronics/Inkplate-micropython/boards/inkplate2
+mpremote mkdir lib
+mpremote cp vendor/inkplate2.py :lib/inkplate2.py
+mpremote cp vendor/gfx_standard_font_01.py :lib/gfx_standard_font_01.py
 ```
 
-This puts `inkplate2.py` and its font file (`gfx_standard_font_01.py`) onto
-the board's filesystem (under `/lib`).
+(`mpremote mkdir lib` will print an error if `/lib` already exists -- that's
+fine, ignore it.)
 
 ## 5. Copy this project's files onto the board
 

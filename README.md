@@ -103,3 +103,4 @@ python3 -m unittest tests.test_totp -v
 | `captive_portal.py` | DNS redirector + HTTP form server for setup config |
 | `display.py` | Renders the code screen via the Inkplate 2 driver |
 | `tests/test_totp.py` | CPython-runnable unit tests for `totp.py` |
+| `vendor/` | Vendored third-party firmware + display driver (see `vendor/README.md`) |
