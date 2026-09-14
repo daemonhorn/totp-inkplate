@@ -10,9 +10,20 @@ that runs past the panel's edge -- it silently draws off-canvas -- so widths
 must be computed, not assumed. Panel is 212x104px.
 """
 
+import time
+
 from inkplate2 import Inkplate
 
 import gfx_standard_font_01 as _font
+
+# Prints how long the actual panel refresh (d.display()) takes, each call --
+# see README's Debugging section. This is the number that answers "is the
+# flashing/slowness the panel's own waveform, or something in our code":
+# clear_display() never touches hardware (see its vendored source -- it's
+# two in-RAM bytearray fills), and show_code()/show_message() each call
+# display() exactly once, so this is the actual, total, one-shot hardware
+# refresh time with nothing else in the mix.
+DEBUG = True
 
 _CODE_TEXT_SIZE = 4
 _LABEL_TEXT_SIZE = 1
@@ -74,6 +85,15 @@ class Display:
             self._d.begin()
             self._began = True
 
+    def _display(self):
+        if not DEBUG:
+            self._d.display()
+            return
+        t0 = time.ticks_ms()
+        self._d.display()
+        elapsed_ms = time.ticks_diff(time.ticks_ms(), t0)
+        print("[debug] display.display() (panel refresh) took %dms" % elapsed_ms)
+
     def show_code(self, account_name, code, valid_until_str, time_synced=True, show_labels=False):
         """Draws the code, centered, at a single text size by default.
 
@@ -119,7 +139,7 @@ class Display:
             d.set_cursor(_MARGIN, _FOOTER_Y)
             d.print(footer)
 
-        d.display()
+        self._display()
 
     def show_message(self, lines):
         """Simple status screen (e.g. config-mode instructions). Wraps and
@@ -141,4 +161,4 @@ class Display:
             line_height=16,
             text_size=_LABEL_TEXT_SIZE,
         )
-        d.display()
+        self._display()
