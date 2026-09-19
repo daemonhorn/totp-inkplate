@@ -31,7 +31,7 @@ manager rather than vendored.
 
 | Dependency | Version | Source |
 |---|---|---|
-| Inkplate MicroPython firmware + driver | `2.0.0` (release tag) | [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython), MIT license -- vendored in `vendor/` |
+| Inkplate MicroPython firmware + driver | driver: `2.0.0` (release tag); firmware: source-built from commit `711ccca` (see `vendor/README.md`) | [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython), MIT license -- vendored in `vendor/` |
 | `mpremote` | any recent version (written against PyPI `1.29.0` / Debian 13's `1.24.1-1`) | [PyPI](https://pypi.org/project/mpremote/) or Debian package `micropython-mpremote` |
 | `esptool` | any recent version (written against PyPI `5.4.0` / Debian 13's `4.7.0+dfsg-0.1`) | [PyPI](https://pypi.org/project/esptool/) or Debian package `esptool` -- used by Thonny/VSCode to flash firmware, or directly as a fallback (step 2). **Debian's `esptool` apt package is broken for this board**: see the warning in step 2. |
 | `ptyprocess` | any recent version (written against `0.7.0`, same on PyPI and Debian 13) | [PyPI](https://pypi.org/project/ptyprocess/) or Debian package `python3-ptyprocess` -- pseudo-terminal support, useful if you want to script an interactive REPL session (e.g. via `pexpect`) instead of typing into `mpremote repl` by hand |
@@ -98,14 +98,17 @@ driver for the e-paper controller as a compiled module -- a generic esp32
 MicroPython build won't have it). This is the same firmware image used for
 every classic-ESP32 Inkplate board (including the Inkplate 2 this project
 originally targeted) -- see `vendor/README.md` for why. This repo vendors it at
-[`vendor/firmware/inkplate-firmware.bin`](vendor/firmware/inkplate-firmware.bin)
-(version `2.0.0` -- see the table above), so there's nothing to separately
-download.
+[`vendor/firmware/inkplate-firmware.bin`](vendor/firmware/inkplate-firmware.bin),
+so there's nothing to separately download. **This is currently a locally
+source-built image, not upstream's `2.0.0` release binary** -- it includes
+an I2S row-truncation fix (upstream commit `711ccca`) that hadn't made it
+into upstream's own prebuilt release asset as of 2026-09-18. See
+`vendor/README.md` for full provenance/build details.
 
 Optionally verify it hasn't been corrupted/altered before flashing:
 
 ```sh
-sha256sum -c <(echo "841859ea7aaffb3d553f4a8436871cb2bcf3e2ce819b716ebd41716890893713  vendor/firmware/inkplate-firmware.bin")
+sha256sum -c <(echo "d135c66e5c56545e046e0de5af87227057b16b9e692317729899d3381c0382ae  vendor/firmware/inkplate-firmware.bin")
 ```
 
 Then flash it using one of:
@@ -202,9 +205,10 @@ Otherwise, exit the REPL with Ctrl-] (or Ctrl-D then Ctrl-]) and continue.
 
 ## 4. Install the Inkplate 10 display driver
 
-Also vendored, under [`vendor/inkplate10/`](vendor/inkplate10/) (same
-`2.0.0` version as the firmware -- see `vendor/README.md` for what each
-file is). Unlike the Inkplate 2, this driver is split across several
+Also vendored, under [`vendor/inkplate10/`](vendor/inkplate10/) (`2.0.0`
+release tag -- see `vendor/README.md` for what each file is, and for why
+the firmware binary itself is no longer from that same tag). Unlike the
+Inkplate 2, this driver is split across several
 shared support files (GPIO expander drivers, the power-management IC
 driver, shared drawing/text mixins), so there are more files to copy --
 all of them go in the board's `/lib` directory, same place `mip install`

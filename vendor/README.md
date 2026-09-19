@@ -9,13 +9,39 @@ and checksums.
 ## Source
 
 [SolderedElectronics/Inkplate-micropython](https://github.com/SolderedElectronics/Inkplate-micropython),
-release tag **`2.0.0`** (tagged 2026-07-21; `master` has since moved on,
-but `2.0.0` is the last labeled release and what everything below is
-pinned to).
-
-License: MIT, Copyright (c) 2020 Thorsten von Eicken. Full text in
+release tag **`2.0.0`** (tagged 2026-07-21) for the Python driver files
+below. License: MIT, Copyright (c) 2020 Thorsten von Eicken. Full text in
 [`LICENSE`](LICENSE) in this directory (kept alongside the code it covers,
 per the license's own terms).
+
+**`firmware/inkplate-firmware.bin` is NOT from that tag or from upstream's
+prebuilt release asset.** It's built from upstream source at commit
+[`711ccca`](https://github.com/SolderedElectronics/Inkplate-micropython/commit/711cccaa849dda64dcd36e65e622a462b3618716)
+(`master`, 2026-09-15) -- a fix for an I2S row-transmission-truncation bug
+on classic ESP32 boards (see
+[issue #51](https://github.com/SolderedElectronics/Inkplate-micropython/issues/51),
+filed and root-caused by this project). Upstream's own prebuilt
+`firmware/inkplate-firmware.bin` release asset had not been rebuilt with
+this fix as of 2026-09-18 (last updated 2026-08-10) -- once upstream
+publishes a release/rebuild that includes it, prefer re-vendoring from
+that over this locally-built one.
+
+Built with ESP-IDF v5.5.2, MicroPython 1.30.0-preview
+(`micropython/ports/esp32`, `BOARD=ESP32_GENERIC BOARD_VARIANT=SPIRAM`,
+`USER_C_MODULES=<checkout>/firmware/usermods/inkplate`), then merged into
+a single flashable image with:
+```sh
+esptool --chip esp32 merge_bin -o inkplate-firmware.bin \
+  --flash_mode dio --flash_size 4MB --flash_freq 40m --target-offset 0x1000 \
+  0x1000 bootloader.bin 0x8000 partition-table.bin 0x10000 micropython.bin
+```
+Verified booting and rendering correctly (HIL, `mpremote` + probes in
+`tools/experiments/`) on one Inkplate 10 V2 unit as of 2026-09-18; a
+second unit (dormant ~3 years before this project started) shows an
+unresolved, apparently unit-specific display defect under this same
+firmware -- see issue #51 for details. Not necessarily reproducible from
+a byte-for-byte-identical checkout going forward the way the Python
+files below are (this is a source build, not a pinned release download).
 
 ## Layout
 
@@ -45,7 +71,7 @@ Verify with `sha256sum -c` (or `shasum -a 256 -c` on macOS) from this
 directory:
 
 ```
-841859ea7aaffb3d553f4a8436871cb2bcf3e2ce819b716ebd41716890893713  firmware/inkplate-firmware.bin
+d135c66e5c56545e046e0de5af87227057b16b9e692317729899d3381c0382ae  firmware/inkplate-firmware.bin
 92fa5db339c05f925654604115eaae73daccdaa68aef21b2ae2fd19c849cbd2a  inkplate2/inkplate2.py
 9d08115125cd7c0a6890030d4e3bb9075b3a38ac21bcc89d27fa79a7e6441ebf  inkplate2/gfx_standard_font_01.py
 5e8c38c5fe5c5e32349c71d876bd15e1352c47dd5a352800ca635112b0a20734  inkplate10/inkplate10.py
