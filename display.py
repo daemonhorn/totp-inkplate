@@ -49,6 +49,22 @@ _CODE_X = (_PANEL_WIDTH - 6 * 12 * _CODE_TEXT_SIZE) // 2
 
 _NOT_SYNCED_MSG = "not synced, code unreliable"
 
+_STATUS_Y = 733  # below the footer/banner area (which extends to ~712 at
+# _LABEL_TEXT_SIZE, see _FOOTER_Y/_draw_banner) with room to spare before
+# the panel's bottom margin (825 - 20 - 24*_LABEL_TEXT_SIZE = 733).
+
+# Single-cell Li-ion/LiPo voltage range for the percentage estimate below --
+# NOT a precise fuel-gauge reading (no coulomb counting, just voltage), so
+# treat the displayed percentage as approximate, particularly near the ends
+# of the curve where voltage sag/recovery under load is least linear.
+_BATTERY_EMPTY_V = 3.3
+_BATTERY_FULL_V = 4.2
+
+
+def _battery_percent(voltage):
+    pct = (voltage - _BATTERY_EMPTY_V) / (_BATTERY_FULL_V - _BATTERY_EMPTY_V) * 100
+    return max(0, min(100, int(round(pct))))
+
 
 def _text_width(text, size=1):
     total = 0
@@ -107,7 +123,9 @@ class Display:
         elapsed_ms = time.ticks_diff(time.ticks_ms(), t0)
         print("[debug] display.%s took %dms" % (op, elapsed_ms))
 
-    def show_code(self, account_name, code, valid_until_str, time_synced=True, show_labels=False):
+    def show_code(
+        self, account_name, code, valid_until_str, now_str=None, time_synced=True, show_labels=False
+    ):
         """Draws the code, centered, at a single text size by default.
 
         `show_labels` (off by default -- same config knob as the Inkplate 2
@@ -119,6 +137,13 @@ class Display:
         rather than a decorative label -- rendered as an inverted (black
         banner, white text) bar rather than red text, since this panel
         has no red channel.
+
+        `now_str` (a pre-formatted local-time string -- see
+        timezone.format_local, same as `valid_until_str`) and the battery
+        level are drawn as a single status line regardless of
+        `show_labels`, same reasoning as the not-synced banner: this is
+        status info, not decoration. Battery is read fresh from hardware
+        on every call (see _battery_percent's caveats about accuracy).
         """
         d = self._d
         self._ensure_began()
@@ -151,7 +176,24 @@ class Display:
             d.set_cursor(_MARGIN, _FOOTER_Y)
             d.print(footer)
 
+        self._draw_status_line(now_str)
+
         self._display()
+
+    def _draw_status_line(self, now_str):
+        battery_pct = _battery_percent(self._d.read_battery())
+        parts = []
+        if now_str:
+            parts.append(now_str)
+        parts.append("Battery %d%%" % battery_pct)
+        text = "   ".join(parts)
+
+        d = self._d
+        text = _truncate_to_width(text, _LABEL_TEXT_SIZE, _PANEL_WIDTH - 2 * _MARGIN)
+        d.set_text_size(_LABEL_TEXT_SIZE)
+        d.set_text_color(d.BLACK)
+        d.set_cursor(_MARGIN, _STATUS_Y)
+        d.print(text)
 
     def _draw_banner(self, text):
         """Inverted (black background, white text) warning bar -- this

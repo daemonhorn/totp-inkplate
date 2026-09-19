@@ -107,6 +107,7 @@ def run():
         code = totp.generate(seed, window)
         window_end = totp.window_end(window)
         valid_until = timezone.format_local(window_end, tz_offset_hours, tz_dst)
+        now_str = timezone.format_local(now, tz_offset_hours, tz_dst)
 
         if DEBUG:
             y, m, d, hh, mm, ss = timezone.unix_to_ymdhms(now)
@@ -117,7 +118,12 @@ def run():
             )
 
         disp.show_code(
-            account_name, code, valid_until, time_synced=time_synced, show_labels=show_labels
+            account_name,
+            code,
+            valid_until,
+            now_str=now_str,
+            time_synced=time_synced,
+            show_labels=show_labels,
         )
 
         sleep_s = window_end - _unix_time()
